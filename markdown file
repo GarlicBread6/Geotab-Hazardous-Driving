@@ -1,0 +1,310 @@
+---
+title: "Careful While Driving in These Provinces!!"
+author: Chien-Che Hung(**1004330164**), Yiwen Yang (**1004244800**), Jincheng
+  Leng (**1003832695**), Tuoyue Huang (**1003906712**), STA130 TUT0101F,Group F1
+output:
+  beamer_presentation: default
+  slidy_presentation: default
+  ioslides_presentation: default
+  widescreen: yes
+subtitle: null
+fontsize: 10 pt
+---
+
+
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+# echo=FALSE will stop the code chunk from appearing in the knit document
+# warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+file_url <- "https://raw.githubusercontent.com/ntaback/UofT_STA130/master/project/hazardousdriving.csv"
+hazarddat <- read.csv(file_url)
+
+# find canada only
+hazardcanada <- hazarddat %>% filter(Country == "Canada")
+
+#definition
+hazardcanadawith_def <- hazardcanada %>% mutate(hazardous_or_not = ifelse(SeverityScore >= quantile(hazardcanada$SeverityScore,0.70),'Yes','No'))
+hazardcanadawith_def %>% summarize(sum(hazardous_or_not == 'No'))
+hazardcanadawith_def %>% summarize(sum(hazardous_or_not == 'Yes'))
+
+# This is the code that can find out the most hazardous driving according to my definition
+hazardcanada_yes <-hazardcanadawith_def %>% filter(hazardous_or_not == 'Yes')
+count_yes <- hazardcanada_yes %>% group_by(State) %>%count()
+count_all <- hazardcanada %>% group_by(State) %>%count()
+
+# create a entirely new dateframe with three variables indicating the name of province, the number of hazardous_driving in that province as well as the total number of observations in that province.
+new <- data.frame(count_yes,count_all[,2])
+names(new) <- c("state","num_of_hzds", "num_of_all")
+
+# create a new dataframe by mutating a new varibale indicating the percentage of hazardous driving according to our definition
+final <- new %>% mutate(pct_of_hzds = num_of_hzds/ num_of_all  )
+final %>% filter(pct_of_hzds == max(pct_of_hzds))
+
+final_more <- final %>% arrange(desc(pct_of_hzds))
+test_stat <- final_more[1,4]-final_more[2,4]
+```
+
+
+## Introduction
+
+The dataset from GEOTAB provides the hazardous areas for driving within a specific area. Each area has a severity score that is measured based on harsh braking incidents, traffic flow, and accident-level incidents. 
+
+- What's the definition of hazardous driving?
+- Which province has the most driving hazards?
+- Is the difference between the highest hazardous driving province and other provinces occur by chance?
+- Whether the severity score and some subcategories of incidents have relationships?
+
+## Statistical Methods
+
+- We aimed to find the province that has the most hazardous driving using **Data Wrangling** and compare it to other provinces using **Barplot**.Barplot can help us to show the difference graphically. 
+
+- We found the most dangerous province from the largest proportion of hazardous driving and use **hypothesis tests for two proportions** to show the difference between that province and remaining provinces. 
+
+- We attempted to use **linear regression line** to find the relationship between **SeverityScore** and **Heavy Duty Truck**.
+
+
+## Data Summary
+
+- Created **hazardcanada** by filtering (**filter()**) **Canada** from **hazarddat**
+- Use **quantile()** to find the **SeverityScore** at position 70% --> 0.0542
+- SeverityScore >= 0.0542: **Yes**(This is our definition)
+   SeverityScore < 0.0542: **No**
+- Use **mutate()** and **ifelse()** to create a new variable **hazardous_or_not** that contains **Yes** and **No** in a new data frame **hazardcanadawith_def** 
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, comment= NA, fig.show= 'hold', results='hold'}
+three_variable <- hazardcanadawith_def %>% select(SeverityScore,State,hazardous_or_not,Country)
+head(three_variable)
+```
+
+
+
+---
+
+**Province with the most driving hazards** 
+
+- Create a data frame **new** with three variables indicating the name of province(**State**), the number of hazardous driving in the specific province (**num_of_hzds**), and the total number of observations in that province(**num_of_all**)
+- Function used to create dataframe **new**: **group_by()**, **count()**, **data.frame()**, and **indexing**
+- Create a data frame **final** from **new** by forming a new variable **pct_of_hzds** which is the quotient of the number of hazardous_driving and total number of observation in the province. 
+- The highest proportion is found by using **arrange(desc())** from **final** and create a new data frame **final_more**
+
+
+---
+
+**Hypothesis Test for Two Proportions**
+
+$$
+H_0: p_1 - p_2 = 0\\
+H_a: p_1 - p_2 \neq 0
+$$
+
+- Repeatedly show the proportion differences between the highest province and the remaining several provinces in addition to the second highest province.
+- Simulate the calculation of the difference between the highest province and the chosen province for 1000 times by using **for loop**
+- After graphing out the distribution, find the **p-value** by calculating the probability of seeing a difference that is as extreme or more extreme than the test statistics we calculated,  assuming that there is no difference between the two provinces.
+
+---
+
+**Linear Regression Line**
+
+- At the first glance of the data, **hdtIncidents** has large numbers with respect to other incidents
+- Create a new dataframe **hazard_variable** from **hazardcanada** by creating **hdt_percentage** (quotient of **HdtIncidents** and **NumberIncidents**)
+- Use **ggplot()** by having **x = hdt_percentage** and **y = SeverityScore**
+- Use **summary(lm())** to get the **R square** to determine the fitness of the graph and the **p-values** to determine whether two variables have relationships 
+
+## Results
+
+According to the data, we can see **Newfoundland and Labrador** has the highest percentage of hazardous driving, which indicates it has the most driving hazards. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, comment= NA, fig.show= 'hold', results='hold'}
+final_more
+```
+
+---
+
+**Bar Plot** from dataset **final_more**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, comment= NA, fig.height=3, fig.show= 'hold', results='hold'}
+final %>% mutate(state = reorder(`state`, -pct_of_hzds)) %>%
+  ggplot(aes(x = state, y = pct_of_hzds)) + geom_col(colour = "black", fill = "grey") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_hline(yintercept = 1, colour = "red")
+```
+
+---
+
+Hypothesis Test for **Newfoundland and Labrador** vs. **Saskatchewan**
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, comment= NA, fig.show= 'hold'}
+#finding the test statistics
+final_more <- final %>% arrange(desc(pct_of_hzds))
+test_stat <- final_more[1,4]-final_more[2,4]
+
+#Hypothesis test between Newfoundland and Saskatchewan
+set.seed(95)
+repetitions <- 1000
+simulated_stats <- rep(NA, repetitions)
+hazardcanada_toptwo <- hazardcanadawith_def %>% filter(State =="Newfoundland and Labrador" | State == "Saskatchewan")
+for (i in 1:repetitions)
+{
+  sim <- hazardcanada_toptwo %>% mutate(hazardous_or_not = sample(hazardous_or_not))
+  
+  hazardcanada_yes1 <-sim %>% filter(hazardous_or_not == 'Yes')
+  count_yes1 <- hazardcanada_yes1 %>% group_by(State) %>%count()
+  count_all1 <- hazardcanada_toptwo %>% group_by(State) %>%count()
+  new1 <- data.frame(count_yes1,count_all1[,2])
+  names(new1) <- c("state","num_of_hzds", "num_of_all")
+  final1 <- new1 %>% mutate(pct_of_hzds = num_of_hzds/ num_of_all)
+  p_diff <- as.numeric(final1[1,4] - final1[2,4])
+  simulated_stats[i] <- p_diff
+}
+
+#graph the test statistics on the graph
+sim_frame <- data.frame(difference = simulated_stats)
+ggplot(sim_frame, aes(difference)) +
+geom_histogram(binwidth=0.1) +
+geom_vline(xintercept = test_stat, color="red") + geom_vline(xintercept = -1*test_stat,color = "red")
+
+#calculate p_value
+sim_frame %>%
+filter(difference >= abs(test_stat) | difference <= -1*abs(test_stat)) %>% summarise(p_value = n() / repetitions)
+```
+
+---
+
+Hypothesis Test for **NewFoundland and Labrador** vs. **New Brunswick**
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, comment= NA, fig.show= 'hold'}
+#Hypothesis Test for Newfoundland" and New Brunswick
+set.seed(100)
+test_stat2 <- final_more[1,4]-final_more[4,4]
+simulated_stats2 <- rep(NA, repetitions)
+hazardcanada_first_medium <- hazardcanadawith_def %>% filter(State =="Newfoundland and Labrador" | State == "New Brunswick")
+for (i in 1:repetitions)
+{
+  sim1 <- hazardcanada_first_medium %>% mutate(hazardous_or_not = sample(hazardous_or_not))
+  
+  hazardcanada_yes2 <-sim1 %>% filter(hazardous_or_not == 'Yes')
+  count_yes2 <- hazardcanada_yes2 %>% group_by(State) %>%count()
+  count_all2 <- hazardcanada_first_medium %>% group_by(State) %>%count()
+  new2 <- data.frame(count_yes2,count_all2[,2])
+  names(new2) <- c("state","num_of_hzds", "num_of_all")
+  final2 <- new2 %>% mutate(pct_of_hzds = num_of_hzds/ num_of_all)
+  p_diff2 <- as.numeric(final2[1,4] - final2[2,4])
+  simulated_stats2[i] <- p_diff2
+}  
+
+#plot the hypothesis test graph
+sim_frame2 <- data.frame(difference = simulated_stats2)
+ggplot(sim_frame2, aes(difference)) +
+geom_histogram(binwidth=0.1) +
+geom_vline(xintercept = test_stat2, color="red") + geom_vline(xintercept = -1*test_stat2,color = "red")
+
+# calculate p_value
+sim_frame2 %>%
+filter(difference >= abs(test_stat2) | difference <= -1*abs(test_stat2)) %>% summarise(p_value = n() / repetitions)
+```
+
+---
+
+Hypothesis Test for **Newfoundland and Labrador** vs. **Alberta**
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, comment= NA, fig.height=3, fig.show= 'hold'}
+#find the test statistics for Newfoundland and Alberta 
+set.seed(100)
+test_stat3 <- final_more[1,4]-final_more[7,4]
+simulated_stats3 <- rep(NA, repetitions)
+hazardcanada_first_last <- hazardcanadawith_def %>% filter(State =="Newfoundland and Labrador" | State == "Alberta")
+
+#Hypothesis test for Newfoundland and Alberta
+for (i in 1:repetitions)
+{
+  sim3 <- hazardcanada_first_last %>% mutate(hazardous_or_not = sample(hazardous_or_not))
+  
+  hazardcanada_yes3 <-sim3 %>% filter(hazardous_or_not == 'Yes')
+  count_yes3 <- hazardcanada_yes3 %>% group_by(State) %>%count()
+  count_all3 <- hazardcanada_first_last %>% group_by(State) %>%count()
+  new3 <- data.frame(count_yes3,count_all3[,2])
+  names(new3) <- c("state","num_of_hzds", "num_of_all")
+  final3 <- new3 %>% mutate(pct_of_hzds = num_of_hzds/ num_of_all)
+  p_diff3 <- as.numeric(final3[1,4] - final3[2,4])
+  simulated_stats3[i] <- p_diff3
+}  
+sim_frame3 <- data.frame(difference = simulated_stats3)
+ggplot(sim_frame3, aes(difference)) +
+geom_histogram(binwidth=0.1) +
+geom_vline(xintercept = test_stat3, color="red") + geom_vline(xintercept = -1*test_stat3,color = "red")
+sim_frame3 %>%
+filter(difference >= abs(test_stat3) | difference <= -1*abs(test_stat3)) %>% summarise(p_value = n() / repetitions)
+```
+
+---
+
+Linear regression line for **Severity Score** and **hdt_percentage** with **log transfermation**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, comment= NA, fig.height=3, fig.show= 'hold'}
+hazard_variable <- hazardcanada %>% mutate(MPV_percentage = (MpvIncidents / NumberIncidents), Car_percentage = (CarIncidents / NumberIncidents),ldt_percentage = (LdtIncidents / NumberIncidents),mdt_percentage = (MdtIncidents/NumberIncidents), hdt_percentage = (HdtIncidents / NumberIncidents),other_percentage = (OtherIncidents/ NumberIncidents))
+
+ggplot(hazard_variable , aes(x=hdt_percentage, y = SeverityScore))+geom_point(size = 0.4) +geom_smooth(method = "lm") + coord_trans(y = "log10")
+summary(lm(SeverityScore ~ hdt_percentage, data = hazard_variable))$coefficients
+
+summary(lm(SeverityScore ~ hdt_percentage, data = hazard_variable))$r.squared
+```
+
+
+## Conclusion
+
+Definition of Hazardous Driving: When the severity score exceeds 0.0542, we consider it as hazardous driving.
+
+Three questions:
+
+- Which province has the most driving hazards?
+- Is the difference between the highest hazardous driving province and other provinces occur by chance?
+- Whether the severity score and some subcategories of incidents have relationships?
+
+---
+
+**Which province has the most driving hazards?**
+
+From the bar plot we created , we are able to see the sequence clearly since it is arranged in a descending order. Newfoundland and Labrador is definitely the most dangerous place for driving according to our definition. Saskatchewan follows Newfoundland and Labrador while Ontario is the safest place to drive in.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, comment= NA, fig.height=3, fig.show= 'hold', results='hold'}
+final %>% mutate(state = reorder(`state`, -pct_of_hzds)) %>%
+  ggplot(aes(x = state, y = pct_of_hzds)) + geom_col(colour = "black", fill = "grey") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_hline(yintercept = 1, colour = "red")
+```
+
+---
+
+**What are the relationships betweeen the province with most driving hazards and other provinces?**
+
+- We do not have sufficient evidence to say that there is a difference in hazardous driving between **Newfoundland and Labrador** and **Saskatchewan**.
+- We have moderate evidence to say that there exists a difference in hazardous driving between **Newfoundland and Labrador** and **New Brunswick**.
+- We have very strong evidence to say that there exists a difference in hazardous driving between **Newfoundland and Labrador** and **Alberta**.
+
+Provinces                 | Saskatchewan    | New Brunswick   |  Alberta     |
+--------------------------|-----------------|-----------------|--------------|
+Newfoundland and Labrador | p_value = 0.234 | p_value = 0.013 | p_value = 0  |
+
+--- 
+
+**Whether the severity score and some subcategories of incidents have relationships?**
+
+
+- It is not a good estimate of relationship between **hdt_percentage** and **severity score** since the R square = 0.1523 which represents a poor fit.
+- Assuming the slope of regression line is zero, the  **p_value is 4.715212e-36**, indicating that we have very **strong evidence** to against that the **slope is 0**.
+- It is hard to tell the relationship between the two variables since the line is actually a poor fit.
+
+--- 
+
+Through performing numerous data wrangling, cleaning on the data given, we conclude that **Newfoundland and Labrador** is the most dangerous province to drive in according to our definition. 
+
+##Challenge: 
+  
+- How can we accurately define hazardous drivng?
+- What is the most suitable approach?
+- What can we do for the neglected data?
+
+
